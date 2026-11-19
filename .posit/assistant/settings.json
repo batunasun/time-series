@@ -6,5 +6,8 @@
     "executeCode": {
       "*": "allow"
     }
+  },
+  "sandbox": {
+    "enabled": true
   }
 }
