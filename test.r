@@ -4,4 +4,4 @@ plot(x)
 3-7
 mean(x)
 x <- 1:10
-mean(x*x)
+mean(x*x)/2
