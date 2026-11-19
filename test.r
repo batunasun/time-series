@@ -5,3 +5,4 @@ plot(x)
 mean(x)
 x <- 1:10
 mean(x*x)/23
+mode(x)

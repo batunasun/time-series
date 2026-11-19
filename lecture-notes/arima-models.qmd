@@ -1,0 +1,293 @@
+---
+title: "ARIMA Models: Theory, Estimation, and Forecasting"
+subtitle: "Graduate-level lecture notes"
+lang: en
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: show
+execute:
+  warning: false
+  message: false
+  echo: true
+---
+
+# Learning objectives
+
+After working through these notes, you should be able to:
+
+1. derive the ARIMA representation using the backshift operator;
+2. distinguish stationarity from invertibility;
+3. explain differencing and identify its limitations;
+4. estimate and diagnose an ARIMA model in R;
+5. derive and interpret forecasts and their uncertainty.
+
+# 1. The ARMA foundation
+
+Let $\{Y_t\}$ be a univariate time series and let $B$ denote the backshift operator, so that $BY_t=Y_{t-1}$. An ARMA($p,q$) process can be written
+
+$$
+\phi(B)(Y_t-\mu)=\theta(B)\varepsilon_t,
+\qquad \varepsilon_t\sim WN(0,\sigma^2),
+$$
+
+where
+
+$$
+\phi(B)=1-\phi_1B-\cdots-\phi_pB^p,
+\qquad
+\theta(B)=1+\theta_1B+\cdots+\theta_qB^q.
+$$
+
+The sign convention for MA coefficients varies across texts and software. Here the MA polynomial uses plus signs. White noise has zero mean, constant variance, and zero autocovariance at nonzero lags; independence or Gaussianity is an additional assumption, not part of the definition of weak white noise.
+
+## 1.1 AR(1) derivation
+
+Consider
+
+$$Y_t-\mu=\phi(Y_{t-1}-\mu)+\varepsilon_t.$$
+
+If $|\phi|<1$, repeatedly substitute the lagged equation:
+
+$$
+Y_t-\mu=\varepsilon_t+\phi\varepsilon_{t-1}+\phi^2\varepsilon_{t-2}+\cdots
+=\sum_{j=0}^{\infty}\phi^j\varepsilon_{t-j}.
+$$
+
+The series converges in mean square because $\sum_{j=0}^{\infty}\phi^{2j}<\infty$. Thus the process is a stable linear filter of current and past shocks. Its variance and autocorrelation function are
+
+$$
+\operatorname{Var}(Y_t)=\frac{\sigma^2}{1-\phi^2},
+\qquad \rho(k)=\phi^{|k|}.
+$$
+
+Intuitively, $\phi$ measures persistence: a shock's effect is multiplied by $\phi$ each period. Positive $\phi$ gives gradual decay; negative $\phi$ gives alternating signs.
+
+## 1.2 Stationarity and invertibility
+
+For an ARMA model, a causal stationary solution exists when the roots of $\phi(z)=0$ lie outside the unit circle. This condition makes the AR component expressible as a convergent infinite moving average. Invertibility requires the roots of $\theta(z)=0$ to lie outside the unit circle; it permits shocks to be recovered stably from current and past observations.
+
+These are different conditions. Stationarity concerns the data-generating process, while invertibility concerns a unique, stable representation of its shocks. Software conventions generally target invertible MA representations.
+
+# 2. Differencing and ARIMA($p,d,q$)
+
+Many economic and physical series are not stationary in level. A common model is that a finite difference is stationary. Define the first-difference operator
+
+$$\nabla Y_t=(1-B)Y_t=Y_t-Y_{t-1}.$$
+
+The $d$th difference is $\nabla^dY_t=(1-B)^dY_t$. An ARIMA($p,d,q$) model is
+
+$$
+\phi(B)(1-B)^d(Y_t-\text{deterministic terms})
+=\theta(B)\varepsilon_t.
+$$
+
+In the common no-drift specification, this is abbreviated as
+
+$$
+\phi(B)(1-B)^dY_t=\theta(B)\varepsilon_t.
+\tag{1}\label{eq-arima}
+$$
+
+The differenced series follows ARMA($p,q$). The integrated order $d$ counts unit roots imposed at $B=1$; it does not mean that the observations themselves are independent or that differencing is always appropriate.
+
+## 2.1 Why a random walk is ARIMA(0,1,0)
+
+Suppose
+
+$$Y_t=Y_{t-1}+\varepsilon_t.$$
+
+Applying $1-B$ gives $(1-B)Y_t=\varepsilon_t$. Thus the level is nonstationary, but its first difference is white noise: it is ARIMA(0,1,0). If a drift $c$ is included, then $\Delta Y_t=c+\varepsilon_t$ and the expected level changes by $c$ per period.
+
+## 2.2 Over-differencing and deterministic trends
+
+Differencing removes low-frequency variation, but excessive differencing can induce strong negative autocorrelation and inflate forecast variance. A deterministic trend, $Y_t=\beta_0+\beta_1t+u_t$, may call for detrending rather than differencing. These mechanisms imply different forecasts, so graphical evidence and subject-matter context matter alongside unit-root tests.
+
+# 3. Identification through ACF and PACF
+
+The sample autocorrelation function (ACF) summarizes linear association between observations separated by lag $k$. The partial autocorrelation function (PACF) measures association at lag $k$ after accounting for intermediate lags.
+
+For a pure AR($p$), the theoretical PACF is zero after lag $p$, while the ACF usually tails off. For a pure MA($q$), the ACF is zero after lag $q$, while the PACF usually tails off. Mixed ARMA models generally have both functions tailing off. These patterns are diagnostic clues, not automatic order-selection rules: sampling variability, seasonality, structural breaks, and near-cancellations can obscure them.
+
+For an AR(2),
+
+$$Y_t-\mu=\phi_1(Y_{t-1}-\mu)+\phi_2(Y_{t-2}-\mu)+\varepsilon_t,$$
+
+the PACF cuts off after lag 2 in the population, provided the process is stationary. The AR polynomial roots must still satisfy the stationarity condition.
+
+# 4. Worked example: derive and simulate an ARIMA(1,1,1)
+
+Consider
+
+$$
+(1-\phi B)(1-B)Y_t=(1+\theta B)\varepsilon_t.
+$$
+
+Expanding the operators gives
+
+$$
+\Delta Y_t-\phi\Delta Y_{t-1}
+=\varepsilon_t+\theta\varepsilon_{t-1},
+$$
+
+or equivalently,
+
+$$
+\Delta Y_t=\phi\Delta Y_{t-1}+\varepsilon_t+\theta\varepsilon_{t-1}.
+$$
+
+The differenced process is ARMA(1,1). If $|\phi|<1$ and the MA polynomial is invertible, its short-run dynamics are stable; the level remains integrated because of the factor $(1-B)$.
+
+```{r}
+# Давтагдах үр дүнд зориулж санамсаргүй үр тогтооно
+set.seed(5831)
+
+n <- 300
+simulated <- arima.sim(
+  model = list(ar = 0.55, ma = 0.35),
+  n = n,
+  sd = 1
+)
+
+y <- cumsum(simulated)
+plot.ts(y, main = "Simulated ARIMA(1,1,1)", ylab = expression(Y[t]))
+```
+
+Here $\Delta Y_t$ is generated as an ARMA(1,1), and cumulative summation constructs an integrated level series. A plotted path is one realization, not evidence that the specified parameters would fit an unrelated observed series.
+
+# 5. Estimation and model selection
+
+For Gaussian innovations, parameters can be estimated by maximum likelihood. Exact likelihood accounts for the initial distribution under stationarity; conditional likelihood conditions on initial observations. Implementations may use different treatments of initial values and may also estimate a mean, drift, or other regressors. Report the specification explicitly.
+
+Model selection typically combines a small set of plausible orders, information criteria, and residual diagnostics. For a likelihood $\ell$ and $k$ estimated parameters, common criteria are
+
+$$
+\mathrm{AIC}=-2\ell+2k,
+\qquad
+\mathrm{BIC}=-2\ell+k\log(n).
+$$
+
+Lower values are preferred only when models are fitted to the same response data under comparable likelihood conventions. AIC and BIC are not tests that a model is true.
+
+## 5.1 R example: fit, compare, and diagnose
+
+```{r}
+fit <- stats::arima(y, order = c(1, 1, 1), include.mean = FALSE)
+fit
+
+# Үлдэгдлийн автокорреляцийг шалгана
+tsdiag(fit)
+
+Box.test(
+  residuals(fit),
+  lag = 20,
+  type = "Ljung-Box",
+  fitdf = 2
+)
+```
+
+For this differenced model, `include.mean = FALSE` avoids adding a mean to the stationary ARMA equation for $\Delta Y_t$. If a nonzero drift is scientifically plausible, include and interpret it deliberately (for example, by comparing a model with drift). In the Ljung--Box test, `fitdf` is commonly taken as $p+q$ for an ARMA residual check; the effective degrees of freedom and test behavior can vary with model and software conventions.
+
+The null hypothesis of the Ljung--Box test is that residual autocorrelations through the chosen lag are jointly zero. A large p-value is not proof of white noise; inspect the residual time plot, ACF, distribution, and possible changing variance as well. If the sample is short or the model is heavily parameterized, the approximation may be poor.
+
+# 6. Forecasting
+
+For a stationary AR(1), $Y_t-\mu=\phi(Y_{t-1}-\mu)+\varepsilon_t$, iterated conditional expectation yields
+
+$$
+\widehat{Y}_{T+h\mid T}
+=\mu+\phi^h(Y_T-\mu).
+$$
+
+The forecast approaches the long-run mean as $h$ grows when $|\phi|<1$. Forecast uncertainty accumulates future shocks:
+
+$$
+\operatorname{Var}(Y_{T+h}-\widehat{Y}_{T+h\mid T})
+=\sigma^2\sum_{j=0}^{h-1}\phi^{2j}
+=\sigma^2\frac{1-\phi^{2h}}{1-\phi^2}.
+$$
+
+For a random walk without drift, $Y_t=Y_{t-1}+\varepsilon_t$, the point forecast is $\widehat{Y}_{T+h\mid T}=Y_T$, while forecast-error variance is $h\sigma^2$. The prediction intervals widen with horizon because future innovations are unknown. ARIMA forecasts are initially made for the differenced process and then accumulated back to the original scale.
+
+```{r}
+forecast::autoplot(forecast::forecast(fit, h = 12))
+```
+
+This example uses the `forecast` package for a convenient forecast plot. Install it if needed with `install.packages("forecast")`; the base `stats::predict()` method is another option for fitted ARIMA models.
+
+# 7. A practical Box--Jenkins workflow
+
+1. Plot the series; look for trend, seasonality, outliers, changing variance, and breaks.
+2. Choose a defensible transformation or deterministic terms before differencing.
+3. Difference only as needed to obtain a plausibly stationary series; inspect the result.
+4. Use ACF/PACF and subject-matter knowledge to propose a small candidate set.
+5. Estimate the candidate models and compare information criteria on comparable fits.
+6. Diagnose residual dependence and stability. Revise the model if diagnostics reveal structure.
+7. Forecast on the original scale, assess uncertainty, and evaluate genuine out-of-sample performance when forecasting is the goal.
+
+Avoid selecting a model solely because one ACF spike crosses an approximate significance band. Repeated inspection across many lags creates a multiple-comparisons problem, and estimated parameters affect residual diagnostics.
+
+# 8. Practice exercises
+
+## Exercise 1: operator expansion
+
+Expand the ARIMA(1,1,1) equation
+
+$$ (1-0.6B)(1-B)Y_t=(1+0.2B)\varepsilon_t $$
+
+into a relation involving $\Delta Y_t$, $\Delta Y_{t-1}$, and the innovations. State the stationary series implied by the model.
+
+## Exercise 2: random walk forecasts
+
+Suppose $Y_t=Y_{t-1}+\varepsilon_t$, where $\varepsilon_t$ is white noise with variance $4$. Given $Y_T=20$, find the point forecasts at horizons 1 and 5, and the forecast-error standard deviation at horizon 5.
+
+## Exercise 3: identify a candidate
+
+An apparently stationary series has an ACF that tails off and a PACF with notable values through lag 2, after which values are small. Give a parsimonious candidate model and one reason not to treat this pattern as conclusive.
+
+## Exercise 4: differencing decision
+
+Explain why a smooth upward trend does not by itself prove a unit root. Give one alternative data-generating mechanism and describe how its forecasts may differ from those of a random walk.
+
+## Exercise 5: residual diagnostic
+
+After fitting an ARIMA model, the Ljung--Box test at lag 20 gives $p=0.01$. State the implication and two sensible follow-up checks.
+
+# 9. Solutions
+
+## Solution 1
+
+Since $(1-0.6B)\Delta Y_t=\Delta Y_t-0.6\Delta Y_{t-1}$, the expanded equation is
+
+$$
+\Delta Y_t=0.6\Delta Y_{t-1}+\varepsilon_t+0.2\varepsilon_{t-1}.
+$$
+
+The stationary series, if the model assumptions hold, is $\Delta Y_t$, which follows ARMA(1,1). The level $Y_t$ is integrated of order one.
+
+## Solution 2
+
+The random-walk forecast at every horizon is the last observed value, so both forecasts equal 20. At horizon 5,
+
+$$
+\operatorname{SD}(Y_{T+5}-\widehat{Y}_{T+5\mid T})
+=\sqrt{5\cdot4}=\sqrt{20}\approx4.47.
+$$
+
+## Solution 3
+
+A reasonable initial candidate is AR(2), since a pure AR(2) has a PACF cutoff after lag 2 and a gradually decaying ACF. The pattern is not conclusive because finite-sample fluctuations, omitted seasonality, breaks, or an ARMA process can produce similar sample plots. Fit and diagnose alternatives rather than reading the order mechanically.
+
+## Solution 4
+
+A deterministic trend plus stationary noise, $Y_t=\beta_0+\beta_1t+u_t$, can produce a smooth increase without a stochastic unit root. Its long-horizon forecasts continue along the estimated trend while stationary deviations revert around it; a random-walk forecast instead remains at the latest level (without drift), with uncertainty growing with horizon. The appropriate distinction depends on the data-generating context and evidence, not the plot alone.
+
+## Solution 5
+
+At the chosen significance level, $p=0.01$ is evidence against the null that residual autocorrelations through lag 20 are jointly zero; the fitted model may leave serial dependence. Inspect the residual ACF and residual time plot, then consider whether a missing AR/MA term, seasonality, a structural break, or other specification issue explains the dependence. Also check that the test's degrees-of-freedom adjustment and sample size are reasonable.
+
+# Further reading
+
+For more detailed treatments, consult standard graduate texts on time series analysis and the documentation for R's `stats::arima()` and the `forecast` package. When reporting an applied analysis, state the differencing, deterministic terms, estimation method, diagnostic checks, and forecast horizon so the model can be reproduced.
