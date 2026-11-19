@@ -1,0 +1,13 @@
+{
+  "permission": {
+    "edit": {
+      "*.r": "allow"
+    },
+    "executeCode": {
+      "*": "allow"
+    }
+  },
+  "sandbox": {
+    "enabled": true
+  }
+}
