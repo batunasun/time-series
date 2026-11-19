@@ -20,7 +20,7 @@ R
 
 - Use R as the default language.
 - Prefer reproducible examples.
-- Include comments in English.
+- Include comments in Mongolian.
 - Explain statistical concepts clearly.
 - Show model equations when relevant.
 - Provide interpretation of outputs.
